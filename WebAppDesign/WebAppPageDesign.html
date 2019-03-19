@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="author" content="FeMeI Code">
+    <meta name="description"
+          content="uniRIDE - the app all students want and need."/>
+    <meta name="keywords"
+          content="student, drive, car, rent, affordable"/>
+    <title>uniRIDE</title>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.0/css/bootstrap.min.css">
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.0/js/bootstrap.min.js"></script>
+    <link href="https://fonts.googleapis.com/css?family=Aldrich" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css?family=Roboto" rel="stylesheet">
+    <link rel="shortcut icon" type="image/png" href="uniRIDE_logo.png"/>
+    <link rel="stylesheet" href="https://atlas.microsoft.com/sdk/css/atlas.min.css?api-version=2" type="text/css"/>
+    <script src="https://atlas.microsoft.com/sdk/js/atlas.min.js?api-version=2"></script>
+    <link rel="stylesheet" href="https://atlas.microsoft.com/sdk/css/atlas.min.css?api-version=2" type="text/css"/>
+    <script src="https://atlas.microsoft.com/sdk/js/atlas.min.js?api-version=2"></script>
+    <script src="https://atlas.microsoft.com/sdk/js/atlas-service.min.js?api-version=2"></script>
+
+    <script type='text/javascript'>
+        var map, datasource, symbolLayer, testDataSize = 4, defaultOptions, removeDefaults;
+
+        //SEARCH variables
+        //The minimum number of characters needed in the search input before a search is performed.
+        var minSearchInputLength = 3;
+        //The number of ms between key strokes to wait before performing a search.
+        var keyStrokeDelay = 150;
+
+
+        function GetMap() {
+            //Initialize a map instance.
+            map = new atlas.Map('myMap', {
+                center: [26.096306, 44.439663],
+                zoom: 14,
+                //Add your Azure Maps subscription key to the map SDK. Get an Azure Maps key at https://azure.com/maps
+                authOptions: {
+                    authType: 'subscriptionKey',
+                    subscriptionKey: 'H1uJOfLYlTiyE-IBNC6_j0u8Jjrwf7iuImZrYapcm88'
+                }
+            });
+
+            // Use SubscriptionKeyCredential with a subscription key
+            var subscriptionKeyCredential = new atlas.service.SubscriptionKeyCredential(atlas.getSubscriptionKey());
+
+// Use subscriptionKeyCredential to create a pipeline
+            var pipeline = atlas.service.MapsURL.newPipeline(subscriptionKeyCredential);
+
+// Construct the SearchURL object
+            var searchURL = new atlas.service.SearchURL(pipeline);
+            //Wait until the map resources are ready.
+            map.events.add('load', function () {
+
+                map.getCanvasContainer().style.cursor = "pointer";
+
+                //Add a layer for rendering the route lines and have it render under the map labels.
+                map.layers.add(new atlas.layer.LineLayer(datasource, null, {
+                    strokeColor: '#2272B9',
+                    strokeWidth: 5,
+                    lineJoin: 'round',
+                    lineCap: 'round',
+                    filter: ['==', '$type', 'LineString']
+                }), 'labels');
+
+                /* Create a popup */
+                var popup = new atlas.Popup();
+
+                //Add the zoom control to the map.
+                map.controls.add(new atlas.control.ZoomControl(), {
+                    position: 'top-right'
+                });
+
+                //Create a data source and add it to the map.
+                datasource = new atlas.source.DataSource();
+                map.sources.add(datasource);
+
+                //Add a layer for rendering the route lines and have it render under the map labels.
+                map.layers.add(new atlas.layer.LineLayer(datasource, null, {
+                    strokeColor: '#2272B9',
+                    strokeWidth: 5,
+                    lineJoin: 'round',
+                    lineCap: 'round',
+                    filter: ['==', '$type', 'LineString']
+                }), 'labels');
+
+
+                var point1 = new atlas.Shape(new atlas.data.Point([44.434664928, 26.1006695973]));
+                var point2 = new atlas.Shape(new atlas.data.Point([44.434664928, 26.1006695973]));
+
+                //Add the symbol to the data source.
+                datasource.add([point1]);
+                datasource.add([point2]);
+                var ok = 0;
+
+                var clicks = 0;
+                map.events.add('click', function (e) {
+
+                    if (clicks < 2) {
+                        if (ok == 0)
+                        /* Update the position of the point feature to where the user clicked on the map. */
+                        {
+                            point1.setCoordinates(e.position);
+                            startPoint = new atlas.data.Feature(new atlas.data.Point([e.position[0], e.position[1]]), {
+                                icon: "pin-blue",
+                                title: "Pick-up"
+                            });
+                            ok = 1;
+                            clicks++;
+                            var position = [e.position[0], e.position[1]];
+
+                            /* Execute the reverse address search query and open a popup once a response is received */
+                            searchURL.searchAddressReverse(atlas.service.Aborter.timeout(10000), position, {
+                                allowFreeformNewline: true
+                            }).then((addresses) => {
+                                //Get data features from response
+                                var data = addresses.geojson.getFeatures();
+
+                                // Construct the popup
+                                var popupContent = document.createElement("div");
+                                popupContent.classList.add("popup-content");
+                                popupContent.innerHTML =
+                                    data.length !== 0
+                                        ? data.features[0].properties.address.freeformAddress
+                                        : "No address for that location!";
+                                popup.setPopupOptions({
+                                    position: e.position,
+                                    content: popupContent
+                                });
+
+                                //ADRESA PICK-UP
+                                console.log(popupContent.innerHTML);
+
+                                // Render the popup on the map
+                                popup.open(map);
+                            });
+                        }
+                        else {
+                            point2.setCoordinates(e.position);
+                            ok = 0;
+                            endPoint = new atlas.data.Feature(new atlas.data.Point([e.position[0], e.position[1]]), {
+                                icon: "pin-blue",
+                                title: "Destination"
+                            });
+                            clicks++;
+                            var position = [e.position[0], e.position[1]];
+
+                            /* Execute the reverse address search query and open a popup once a response is received */
+                            searchURL.searchAddressReverse(atlas.service.Aborter.timeout(10000), position, {
+                                allowFreeformNewline: true
+                            }).then((addresses) => {
+                                //Get data features from response
+                                var data = addresses.geojson.getFeatures();
+
+                                // Construct the popup
+                                var popupContent = document.createElement("div");
+                                popupContent.classList.add("popup-content");
+                                popupContent.innerHTML =
+                                    data.length !== 0
+                                        ? data.features[0].properties.address.freeformAddress
+                                        : "No address for that location!";
+                                popup.setPopupOptions({
+                                    position: e.position,
+                                    content: popupContent
+                                });
+
+                                //ADRESA DESTINATION
+                                console.log(popupContent.innerHTML);
+
+                                // Render the popup on the map
+                                popup.open(map);
+                            });
+
+                        }
+
+                        //datasource.add([startPoint, endPoint]);
+
+
+                        //ROUTE
+                        // Use SubscriptionKeyCredential with a subscription key
+                        var subscriptionKeyCredential = new atlas.service.SubscriptionKeyCredential(atlas.getSubscriptionKey());
+                        // Use subscriptionKeyCredential to create a pipeline
+                        var pipeline = atlas.service.MapsURL.newPipeline(subscriptionKeyCredential);
+                        // Construct the RouteURL object
+                        var routeURL = new atlas.service.RouteURL(pipeline);
+                        //Start and end point input to the routeURL
+                        var coordinates = [[startPoint.geometry.coordinates[0], startPoint.geometry.coordinates[1]], [endPoint.geometry.coordinates[0], endPoint.geometry.coordinates[1]]];
+                        //Make a search route request
+                        routeURL.calculateRouteDirections(atlas.service.Aborter.timeout(10000), coordinates).then((directions) => {
+                            //Get data features from response
+                            var data = directions.geojson.getFeatures();
+                            datasource.add(data);
+
+                        });
+
+                    }
+                    else if (click == 2)
+                        clicks = 0;
+                    map.setCamera({
+                        bounds: atlas.data.BoundingBox.fromData([startPoint, endPoint]),
+                        padding: 80
+                    });
+
+                });
+
+                //Create a symbol layer using the data source and add it to the map
+                map.layers.add(new atlas.layer.SymbolLayer(datasource, null));
+                map.layers.add(new atlas.layer.SymbolLayer(datasource, null, {
+                    iconOptions: {
+                        image: ['get', 'icon'],
+                        allowOverlap: true
+                    },
+                    textOptions: {
+                        textField: ['get', 'title'],
+                        size: 14,
+                        font: ['SegoeUi-Bold'],
+                        color: 'orange',
+                        offset: [0, 1.2]
+                    },
+                    filter: ['==', '$type', 'Point']
+                }));
+
+
+            });
+
+        }
+
+
+    </script>
+    <style>
+        h1 {
+            font-family: 'Aldrich', sans-serif;
+        }
+
+        body {
+            font-family: 'Roboto', sans-serif;
+            position: relative;
+        }
+
+        ul.nav-pills {
+            top: 20px;
+            position: fixed;
+        }
+
+        div.col-sm-9 div {
+            height: 400px;
+            font-size: 28px;
+        }
+
+        #section1 {
+            color: #fff;
+            background-color: #f65314;
+            margin-bottom: 70px;
+        }
+
+        #section2 {
+            color: #fff;
+            background-color: #7cbb00;
+        }
+
+        #section31 {
+            color: #fff;
+            background-color: #00bcd4;
+        }
+
+        #section32 {
+            color: #fff;
+            background-color: #ffbb00;
+        }
+
+        @media screen and (max-width: 810px) {
+            #section1, #section2, #section3, #section41, #section42 {
+                margin-left: 150px;
+            }
+        }
+
+        #myMap {
+            position: relative;
+            width: calc(100%);
+            min-width: 350px;
+            height: 600px;
+            float: left;
+        }
+
+        .poi-content-box {
+            width: calc(100% - 16px);
+            height: calc(100% - 39px);
+            padding: 8px;
+        }
+
+        .poi-content-box .info {
+            white-space: nowrap;
+            text-overflow: ellipsis;
+            overflow: hidden;
+            display: block;
+            background-repeat: no-repeat;
+            background-position: left;
+            padding-left: 15px;
+            background-size: 10px 10px;
+            width: calc(100% - 15px);
+        }
+
+        .info .phone {
+            background-image: url("data:image/svg+xml;base64,PHN2ZyBpZD0iTGF5ZXJfMSIgZGF0YS1uYW1lPSJMYXllciAxIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNS45NzQ2IDI2Ij48dGl0bGU+cG9pPC90aXRsZT48cGF0aCBkPSJNMjAuMzkxNCwxNS4zOTk0YTIuODE0MSwyLjgxNDEsMCwwLDEsMS4wNzIyLjIwOTUsMi43MjQzLDIuNzI0MywwLDAsMSwuOTA3My42MDNsMi43OTE2LDIuNzkzYTIuNzI1OCwyLjcyNTgsMCwwLDEsLjYwMjcuOTA3NywyLjg1MjksMi44NTI5LDAsMCwxLDAsMi4xNDU1LDIuNzI1OCwyLjcyNTgsMCwwLDEtLjYwMjcuOTA3N3EtLjcyMzMuNzM2My0xLjMyLDEuMzAxM2E3LjQwNDMsNy40MDQzLDAsMCwxLTEuMjMwOC45NTIxLDUuMDk1LDUuMDk1LDAsMCwxLTEuNDA4NS41ODRBNy42NjM4LDcuNjYzOCwwLDAsMSwxOS4zMzgyLDI2YTExLjQ3NywxMS40NzcsMCwwLDEtMy4yNjExLS40OTUxLDE4LjA4ODIsMTguMDg4MiwwLDAsMS0zLjMzMDktMS4zNzExLDIzLjg4LDIzLjg4LDAsMCwxLTMuMjQ4NC0yLjA4MkEyOC4xNTgsMjguMTU4LDAsMCwxLDYuNDksMTkuNDE3NSwyOC44OTc1LDI4Ljg5NzUsMCwwLDEsMy44ODI5LDE2LjM5NmEyMy42NzQ3LDIzLjY3NDcsMCwwLDEtMi4wNTU2LTMuMjVBMTguMjMyNywxOC4yMzI3LDAsMCwxLC40ODIyLDkuODM4OSwxMS4zODY0LDExLjM4NjQsMCwwLDEsMCw2LjY0LDcuNTk1Niw3LjU5NTYsMCwwLDEsLjE5NjcsNC43OCw1LjIxLDUuMjEsMCwwLDEsLjc4LDMuMzcwNmE3LjA3NSw3LjA3NSwwLDAsMSwuOTUxNy0xLjIzMTRxLjU2NDctLjU5LDEuMzAwNi0xLjMxNEEyLjgyNywyLjgyNywwLDAsMSwzLjkzMzYuMjE1OGEyLjc4NzIsMi43ODcyLDAsMCwxLDIuMTUwOCwwLDIuODA3OSwyLjgwNzksMCwwLDEsLjkwNzMuNjA5NGwyLjc5MTYsMi43OTNhMi43MjU4LDIuNzI1OCwwLDAsMSwuNjAyNy45MDc3LDIuODE3OSwyLjgxNzksMCwwLDEsLjIwOTQsMS4wNzI4LDIuNDc4LDIuNDc4LDAsMCwxLS4xOS45OTY2LDMuNjAxNiwzLjYwMTYsMCwwLDEtLjQ2OTUuNzkzNSw0LjY5NzksNC42OTc5LDAsMCwxLS42MTU0LjY0NzVxLS4zMzYzLjI5Mi0uNjE1NC41NzEzYTMuNzMyNCwzLjczMjQsMCwwLDAtLjQ2OTUuNTY0OSwxLjA4OTQsMS4wODk0LDAsMCwwLS4xOS42MTU3LDEuMTI1MiwxLjEyNTIsMCwwLDAsLjM0MjYuODI1Mmw2Ljk5MTcsNi45OTUxYTEuMTI0MSwxLjEyNDEsMCwwLDAsLjgyNDguMzQyOCwxLjA4ODEsMS4wODgxLDAsMCwwLC42MTU0LS4xOSwzLjczMTMsMy43MzEzLDAsMCwwLC41NjQ3LS40N3EuMjc5Mi0uMjc5My41NzEtLjYxNTdhNC42OTc1LDQuNjk3NSwwLDAsMSwuNjQ3MS0uNjE1NywzLjU5OTEsMy41OTkxLDAsMCwxLC43OTMxLS40NywyLjQ3NDcsMi40NzQ3LDAsMCwxLC45OTYxLS4xOU0xOS4zMzgyLDI0LjM3NWE1Ljc5NDIsNS43OTQyLDAsMCwwLDEuNTI5LS4xNzE0LDMuOTQ3OCwzLjk0NzgsMCwwLDAsMS4xMS0uNDk1MSw1LjczNDEsNS43MzQxLDAsMCwwLC45NjQ0LS44MDYycS40Njk1LS40ODI0LDEuMDc4Ni0xLjA5MThhMS4xMjUyLDEuMTI1MiwwLDAsMCwuMzQyNi0uODI1MiwxLjEwNDUsMS4xMDQ1LDAsMCwwLS4xODQtLjU0LDQuNzY0OSw0Ljc2NDksMCwwLDAtLjQ3NTgtLjY1MzhxLS4yOTE5LS4zNDI4LS42NTM1LS43MDQ2dC0uNzEwNi0uNjg1NXEtLjM0OS0uMzIzNy0uNjQ3MS0uNTk2N3QtLjQ2MzItLjQzOGExLjEzODksMS4xMzg5LDAsMCwwLS44Mzc1LS4zNDI4LDEuMDU4NywxLjA1ODcsMCwwLDAtLjYwOTEuMTksMy45MTY4LDMuOTE2OCwwLDAsMC0uNTU4My40N3EtLjI3OTIuMjc5My0uNTc3NC42MTU3YTUuMDAyNiw1LjAwMjYsMCwwLDEtLjY1MzUuNjE1NywzLjU5OTEsMy41OTkxLDAsMCwxLS43OTMxLjQ3LDIuNDc0NywyLjQ3NDcsMCwwLDEtLjk5NjEuMTksMi44MTQxLDIuODE0MSwwLDAsMS0xLjA3MjItLjIwOTUsMi43MjQzLDIuNzI0MywwLDAsMS0uOTA3My0uNjAzTDcuMjMyOCwxMS43Njg2YTIuNzI1OCwyLjcyNTgsMCwwLDEtLjYwMjctLjkwNzcsMi44MTc5LDIuODE3OSwwLDAsMS0uMjA5NC0xLjA3MjgsMi40NzgsMi40NzgsMCwwLDEsLjE5LS45OTY2LDMuNjAxNiwzLjYwMTYsMCwwLDEsLjQ2OTUtLjc5MzUsNS4wMDMsNS4wMDMsMCwwLDEsLjYxNTQtLjY1MzhxLjMzNjMtLjI5ODMuNjE1NC0uNTc3NmEzLjkxNzgsMy45MTc4LDAsMCwwLC40Njk1LS41NTg2LDEuMDYsMS4wNiwwLDAsMCwuMTktLjYwOTQsMS4xNCwxLjE0LDAsMCwwLS4zNDI2LS44Mzc5cS0uMTY1LS4xNjUtLjQzNzgtLjQ2MzRUNy41OTQ0LDMuNjVxLS4zMjM2LS4zNDkxLS42ODUyLS43MTA5VDYuMjA1LDIuMjg1MmE0Ljc2MjcsNC43NjI3LDAsMCwwLS42NTM1LS40NzYxLDEuMTAzMiwxLjEwMzIsMCwwLDAtLjUzOTMtLjE4NDEsMS4xMjQxLDEuMTI0MSwwLDAsMC0uODI0OC4zNDI4cS0uNjA5MS42MDk0LTEuMDg0OSwxLjA3OTFhNi40NjgzLDYuNDY4MywwLDAsMC0uODEyMS45NjQ4LDMuNzUsMy43NSwwLDAsMC0uNTA3NiwxLjExMDhBNS43NDQyLDUuNzQ0MiwwLDAsMCwxLjYxMTUsNi42NGE5Ljk4MzQsOS45ODM0LDAsMCwwLC40NjMyLDIuOTMyNiwxNi41LDE2LjUsMCwwLDAsMS4yODE2LDMuMDIxNSwyMy4wMTM3LDIzLjAxMzcsMCwwLDAsMS45MzUxLDIuOTc3MSwyNi41MjI5LDI2LjUyMjksMCwwLDAsMi40MzYzLDIuNzczOSwyNy4yODMyLDI3LjI4MzIsMCwwLDAsMi43ODUzLDIuNDEyMSwyMi45ODcsMjIuOTg3LDAsMCwwLDIuOTY5MywxLjkxMDYsMTYuMzY2MSwxNi4zNjYxLDAsMCwwLDIuOTk0NiwxLjI1NjhBOS44ODEsOS44ODEsMCwwLDAsMTkuMzM4MiwyNC4zNzVaIiBmaWxsPSIjNjY2NzY3Ii8+PC9zdmc+");
+        }
+
+        .info .website {
+            background-image: url("data:image/svg+xml;base64,PHN2ZyBpZD0iTGF5ZXJfMSIgZGF0YS1uYW1lPSJMYXllciAxIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNyAyNyI+PHRpdGxlPnBvaTwvdGl0bGU+PHBhdGggZD0iTTEzLjUsMGExMy4yOTc4LDEzLjI5NzgsMCwwLDEsMy41ODU5LjQ4MTIsMTMuNjUyNCwxMy42NTI0LDAsMCwxLDMuMjMsMS4zNTc5LDEzLjQ3NDMsMTMuNDc0MywwLDAsMSw0Ljg0NSw0Ljg0NSwxMy42NTI0LDEzLjY1MjQsMCwwLDEsMS4zNTc5LDMuMjMsMTMuNjAxOSwxMy42MDE5LDAsMCwxLDAsNy4xNzE5LDEzLjY1MjQsMTMuNjUyNCwwLDAsMS0xLjM1NzksMy4yMywxMy40NzQzLDEzLjQ3NDMsMCwwLDEtNC44NDUsNC44NDUsMTMuNjUyNCwxMy42NTI0LDAsMCwxLTMuMjMsMS4zNTc5LDEzLjYwMTksMTMuNjAxOSwwLDAsMS03LjE3MTksMCwxMy42NTI0LDEzLjY1MjQsMCwwLDEtMy4yMy0xLjM1NzksMTMuNDc0MywxMy40NzQzLDAsMCwxLTQuODQ1LTQuODQ1QTEzLjY4MTIsMTMuNjgxMiwwLDAsMSwuNDgxMiwxNy4wOTI1YTEzLjYyNjUsMTMuNjI2NSwwLDAsMSwwLTcuMTc4NSwxMy42NTI0LDEzLjY1MjQsMCwwLDEsMS4zNTc5LTMuMjMsMTMuNDc0MywxMy40NzQzLDAsMCwxLDQuODQ1LTQuODQ1QTEzLjY4MTIsMTMuNjgxMiwwLDAsMSw5LjkwNzUuNDgxMiwxMy4yNzU1LDEzLjI3NTUsMCwwLDEsMTMuNSwwTTI0LjE2NTUsOC40Mzc1YTExLjI2NzgsMTEuMjY3OCwwLDAsMC0xLjIxMjktMi4wMSwxMi4wMDg0LDEyLjAwODQsMCwwLDAtMS41ODItMS43MiwxMi4yNCwxMi4yNCwwLDAsMC0xLjg4NTMtMS4zODQzLDExLjM1MjYsMTEuMzUyNiwwLDAsMC0yLjEyMjYtLjk4ODhBMTEuMjA5NCwxMS4yMDk0LDAsMCwxLDE4LjIyLDMuNzMxYTE0LjMzMTYsMTQuMzMxNiwwLDAsMSwuNjc5LDEuNTIyNywxNS44Nzc1LDE1Ljg3NzUsMCwwLDEsLjUwNzYsMS41ODg2cS4yMTA5LjgwNDIuMzY5MSwxLjU5NTJoNC4zOU0yNS4zMTI1LDEzLjVhMTEuNjUyNSwxMS42NTI1LDAsMCwwLS40ODc4LTMuMzc1SDIwLjAzOTFxLjEwNTUuODQzNy4xNTgyLDEuNjgwOVQyMC4yNSwxMy41cTAsLjg1NjktLjA1MjcsMS42OTQxdC0uMTU4MiwxLjY4MDloNC43ODU2YTExLjY1MjUsMTEuNjUyNSwwLDAsMCwuNDg3OC0zLjM3NU0xMy41LDI1LjMxMjVhMi4yMDg2LDIuMjA4NiwwLDAsMCwxLjIwNjMtLjM1Niw0LjM3Niw0LjM3NiwwLDAsMCwxLjAzNDktLjkzNiw3LjQwMjUsNy40MDI1LDAsMCwwLC44NS0xLjMxMTgsMTUuMzI3MiwxNS4zMjcyLDAsMCwwLC42NjU4LTEuNDgzMnEuMjktLjc1MTUuNDg3OC0xLjQ1dC4zMDMyLTEuMjEyOUg4Ljk1MTdxLjEwNTUuNTE0Mi4zMDMyLDEuMjEyOXQuNDg3OCwxLjQ1YTE1LjMyNzQsMTUuMzI3NCwwLDAsMCwuNjY1OCwxLjQ4MzIsNy40MDI1LDcuNDAyNSwwLDAsMCwuODUsMS4zMTE4LDQuMzc2MSw0LjM3NjEsMCwwLDAsMS4wMzQ5LjkzNiwyLjIwODYsMi4yMDg2LDAsMCwwLDEuMjA2My4zNTZtNC44Mzg0LTguNDM3NXEuMTA1NS0uODQzOC4xNjQ4LTEuNjgwOVQxOC41NjI1LDEzLjVxMC0uODU2OS0uMDU5My0xLjY5NDF0LS4xNjQ4LTEuNjgwOUg4LjY2MTZxLS4xMDU1Ljg0MzctLjE2NDgsMS42ODA5VDguNDM3NSwxMy41cTAsLjg1NjkuMDU5MywxLjY5NDF0LjE2NDgsMS42ODA5aDkuNjc2OE0xLjY4NzUsMTMuNWExMS42NTI1LDExLjY1MjUsMCwwLDAsLjQ4NzgsMy4zNzVINi45NjA5cS0uMTA1NS0uODQzOC0uMTU4Mi0xLjY4MDlUNi43NSwxMy41cTAtLjg1NjkuMDUyNy0xLjY5NDF0LjE1ODItMS42ODA5SDIuMTc1M0ExMS42NTI1LDExLjY1MjUsMCwwLDAsMS42ODc1LDEzLjVNMTMuNSwxLjY4NzVhMi4yMDg2LDIuMjA4NiwwLDAsMC0xLjIwNjMuMzU2LDQuMzc2LDQuMzc2LDAsMCwwLTEuMDM0OS45MzYsNy40MDI1LDcuNDAyNSwwLDAsMC0uODUsMS4zMTE4LDE1LjMyNzQsMTUuMzI3NCwwLDAsMC0uNjY1OCwxLjQ4MzJxLS4yOS43NTE1LS40ODc4LDEuNDVUOC45NTE3LDguNDM3NWg5LjA5NjdxLS4xMDU1LS41MTQyLS4zMDMyLTEuMjEyOXQtLjQ4NzgtMS40NWExNS4zMjcyLDE1LjMyNzIsMCwwLDAtLjY2NTgtMS40ODMyLDcuNDAyNSw3LjQwMjUsMCwwLDAtLjg1LTEuMzExOCw0LjM3Niw0LjM3NiwwLDAsMC0xLjAzNDktLjkzNkEyLjIwODYsMi4yMDg2LDAsMCwwLDEzLjUsMS42ODc1bS0zLjg2MjguNjQ2YTExLjM1MjYsMTEuMzUyNiwwLDAsMC0yLjEyMjYuOTg4OEExMi4yNCwxMi4yNCwwLDAsMCw1LjYyOTQsNC43MDY1YTEyLjAwODQsMTIuMDA4NCwwLDAsMC0xLjU4MiwxLjcyLDExLjI2NzgsMTEuMjY3OCwwLDAsMC0xLjIxMjksMi4wMWg0LjM5cS4xNTgyLS43OTEuMzY5MS0xLjU5NTJhMTUuODc3OCwxNS44Nzc4LDAsMCwxLC41MDc2LTEuNTg4NkExNC4zMzE3LDE0LjMzMTcsMCwwLDEsOC43OCwzLjczMWExMS4yMDkzLDExLjIwOTMsMCwwLDEsLjg1NjktMS4zOTc1TTIuODM0NSwxOC41NjI1YTExLjI2NzgsMTEuMjY3OCwwLDAsMCwxLjIxMjksMi4wMSwxMi4wMDgzLDEyLjAwODMsMCwwLDAsMS41ODIsMS43MiwxMi4yNCwxMi4yNCwwLDAsMCwxLjg4NTMsMS4zODQzLDExLjM1MjUsMTEuMzUyNSwwLDAsMCwyLjEyMjYuOTg4OEExMS4yMDkzLDExLjIwOTMsMCwwLDEsOC43OCwyMy4yNjlhMTQuMzMxNywxNC4zMzE3LDAsMCwxLS42NzktMS41MjI3LDE1Ljg3NzgsMTUuODc3OCwwLDAsMS0uNTA3Ni0xLjU4ODZxLS4yMTA5LS44MDQyLS4zNjkxLTEuNTk1MmgtNC4zOW0xNC41MjgzLDYuMTA0YTExLjM1MjYsMTEuMzUyNiwwLDAsMCwyLjEyMjYtLjk4ODgsMTIuMjQsMTIuMjQsMCwwLDAsMS44ODUzLTEuMzg0MywxMi4wMDgzLDEyLjAwODMsMCwwLDAsMS41ODItMS43MiwxMS4yNjc5LDExLjI2NzksMCwwLDAsMS4yMTI5LTIuMDFoLTQuMzlxLS4xNTgyLjc5MS0uMzY5MSwxLjU5NTJhMTUuODc3NSwxNS44Nzc1LDAsMCwxLS41MDc2LDEuNTg4NiwxNC4zMzE1LDE0LjMzMTUsMCwwLDEtLjY3OSwxLjUyMjdBMTEuMjA5NCwxMS4yMDk0LDAsMCwxLDE3LjM2MjgsMjQuNjY2NVoiIGZpbGw9IiM2NjY3NjciLz48L3N2Zz4=");
+        }
+
+        .info .location {
+            background-image: url("data:image/svg+xml;base64,PHN2ZyBpZD0iTGF5ZXJfMSIgZGF0YS1uYW1lPSJMYXllciAxIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNyAzNiI+PHRpdGxlPnBvaTwvdGl0bGU+PHBhdGggZD0iTTEzLjUsMGExMy4zNywxMy4zNywwLDAsMSwzLjU4NTkuNDc5MiwxMy43ODY2LDEzLjc4NjYsMCwwLDEsMy4yMjczLDEuMzQzOCwxMy4zMzg2LDEzLjMzODYsMCwwLDEsNi4yMDE2LDcuOTY4N0ExMi45MDA5LDEyLjkwMDksMCwwLDEsMjcsMTMuMzMzM2ExMC41NjY0LDEwLjU2NjQsMCwwLDEtLjM0OCwyLjc0LDEzLjQwNTEsMTMuNDA1MSwwLDAsMS0xLjAwMiwyLjU5MzhMMTMuNSwzNiwxLjM1LDE4LjY2NjdBMTMuNDA1LDEzLjQwNSwwLDAsMSwuMzQ4LDE2LjA3MjksMTAuNTY2NCwxMC41NjY0LDAsMCwxLDAsMTMuMzMzMywxMi45MDA5LDEyLjkwMDksMCwwLDEsLjQ4NTIsOS43OTE3LDEzLjQzNDYsMTMuNDM0NiwwLDAsMSwxLjg0NTcsNi42MDQyYTEzLjQ1MywxMy40NTMsMCwwLDEsNC44NDEtNC43ODEyQTEzLjc4NjUsMTMuNzg2NSwwLDAsMSw5LjkxNDEuNDc5MiwxMy4zNywxMy4zNywwLDAsMSwxMy41LDBNMjMuNTQwNiwxNy42MjVxMC0uMDIwOC4wMTA1LS4wMjA4dC4wMTA1LS4wMjA4YTguOTgsOC45OCwwLDAsMCwuODAxNi0yLjA2MjUsOC44ODE2LDguODgxNiwwLDAsMCwuMjc0Mi0yLjE4NzUsMTAuNTMzNywxMC41MzM3LDAsMCwwLS44NzU0LTQuMjcwOCwxMS4xNTYxLDExLjE1NjEsMCwwLDAtMi4zOTQxLTMuNSwxMS4zMSwxMS4zMSwwLDAsMC0zLjU0MzctMi4zNjQ2QTEwLjg5NjEsMTAuODk2MSwwLDAsMCwxMy41LDIuMzMzM2ExMC44OTYxLDEwLjg5NjEsMCwwLDAtNC4zMjQyLjg2NDZBMTEuMzEsMTEuMzEsMCwwLDAsNS42MzIsNS41NjI1YTExLjE1NjEsMTEuMTU2MSwwLDAsMC0yLjM5NDEsMy41LDEwLjUzMzcsMTAuNTMzNywwLDAsMC0uODc1NCw0LjI3MDgsOC44ODE1LDguODgxNSwwLDAsMCwuMjc0MiwyLjE4NzUsOC45OCw4Ljk4LDAsMCwwLC44MDE2LDIuMDYyNXEwLC4wMjA4LjAxMDUuMDIwOHQuMDEwNS4wMjA4TDEzLjUsMzAuNzkxNywyMy41NDA2LDE3LjYyNU0xMy41LDUuNWE3LjgxMjIsNy44MTIyLDAsMCwxLDMuMDkuNjE0Niw4LjAwOTMsOC4wMDkzLDAsMCwxLDIuNTIwNywxLjY3NzEsNy45LDcuOSwwLDAsMSwxLjY5OCwyLjQ5LDcuNzk2LDcuNzk2LDAsMCwxLDAsNi4xMDQyLDcuOSw3LjksMCwwLDEtMS42OTgsMi40OUE4LjAwOTMsOC4wMDkzLDAsMCwxLDE2LjU5LDIwLjU1MjFhOC4wNzY0LDguMDc2NCwwLDAsMS02LjE4LDBBOC4wMDkyLDguMDA5MiwwLDAsMSw3Ljg4OTEsMTguODc1YTcuOSw3LjksMCwwLDEtMS42OTgtMi40OSw3Ljc5Niw3Ljc5NiwwLDAsMSwwLTYuMTA0Miw3LjksNy45LDAsMCwxLDEuNjk4LTIuNDlBOC4wMDkyLDguMDA5MiwwLDAsMSwxMC40MSw2LjExNDYsNy44MTIzLDcuODEyMywwLDAsMSwxMy41LDUuNW0wLDEzLjMzMzNhNS41NDA3LDUuNTQwNywwLDAsMCw1LjEzNjMtMy4zNTQyLDUuNTQsNS41NCwwLDAsMCwwLTQuMjkxNyw1LjUwNTQsNS41MDU0LDAsMCwwLTEuMTkxOC0xLjc1LDUuNjI4OSw1LjYyODksMCwwLDAtNy44ODkxLDAsNS41MDU0LDUuNTA1NCwwLDAsMC0xLjE5MTgsMS43NSw1LjU0LDUuNTQsMCwwLDAsMCw0LjI5MTcsNS41MDU0LDUuNTA1NCwwLDAsMCwxLjE5MTgsMS43NUE1LjU2OTQsNS41Njk0LDAsMCwwLDEzLjUsMTguODMzM1oiIGZpbGw9IiM2NzY4NjciLz48L3N2Zz4=");
+        }
+    </style>
+</head>
+<body data-spy="scroll" data-target="#myScrollspy" data-offset="20" onload="GetMap()">
+
+<div class="container">
+    <div class="row">
+        <nav class="col-sm-3" id="myScrollspy">
+            <ul class="nav nav-pills nav-stacked">
+                <li><a href="#logo"><img class="img-responsive" src="uniRIDE_logo.png"></a></li>
+                <li class="active"><a href="#section1">uniRIDE</a></li>
+                <li><a href="#section2">How it works</a></li>
+                <li class="dropdown">
+                    <a class="dropdown-toggle" data-toggle="dropdown" href="#">You<span class="caret"></span></a>
+                    <ul class="dropdown-menu">
+                        <li><a href="#section31">Need a ride</a></li>
+                        <li><a href="#section32">Own a car</a></li>
+                    </ul>
+                </li>
+            </ul>
+        </nav>
+        <div class="col-sm-9 fluid-container">
+            <div id="section1">
+                <h1>uniRIDE</h1>
+                <div class="fluid-container">
+
+                    <div id="myCarousel" class="carousel slide" data-ride="carousel">
+                        <ol class="carousel-indicators">
+                            <li data-target="#myCarousel" data-slide-to="0" class="active"></li>
+                            <li data-target="#myCarousel" data-slide-to="1"></li>
+                            <li data-target="#myCarousel" data-slide-to="2"></li>
+                        </ol>
+
+                        <div class="carousel-inner">
+                            <div class="item active">
+                                <img src="slideshow3.jpg" alt="safe" style="width:100%;">
+                                <div class="carousel-caption">
+                                    <p>We know you want to feel safe.</p>
+                                </div>
+                            </div>
+
+                            <div class="item">
+                                <img src="slideshow2.jpg" alt="affordable" style="width:100%;">
+                                <div class="carousel-caption">
+                                    <p>We know you need it to be affordable.</p>
+                                </div>
+                            </div>
+
+                            <div class="item">
+                                <img src="slideshow1.jpg" alt="time" style="width:100%;">
+                                <div class="carousel-caption">
+                                    <p>We know you want to be there on time.</p>
+                                </div>
+                            </div>
+
+                        </div>
+
+                        <!-- Left and right controls -->
+                        <a class="left carousel-control" href="#myCarousel" data-slide="prev">
+                            <span class="glyphicon glyphicon-chevron-left"></span>
+                            <span class="sr-only">Previous</span>
+                        </a>
+                        <a class="right carousel-control" href="#myCarousel" data-slide="next">
+                            <span class="glyphicon glyphicon-chevron-right"></span>
+                            <span class="sr-only">Next</span>
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <div id="section2">
+                <h1>How it works</h1>
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="thumbnail" style="background-color: #7cbb00; border: 0px; height: 30%">
+                            <img src="pickup_location.png" style="width:30vh; height:30vh">
+                            <div class="caption"
+                                 style="font-family: 'Roboto', sans-serif; font-weight: bold; color: white; text-align: center">
+                                <p>step 1: where from</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="thumbnail" style="background-color: #7cbb00; border: 0px; height: 30%;">
+                            <img src="destination.png" style="width:30vh; height:30vh">
+                            <div class="caption"
+                                 style="font-family: 'Roboto', sans-serif; font-weight: bold; color: white; text-align: center">
+                                <p>step 2: where to</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="thumbnail" style="background-color: #7cbb00; border: 0px; height: 30%;">
+                            <img src="match.png" style="width:30vh; height:30vh">
+                            <div class="caption"
+                                 style="font-family: 'Roboto', sans-serif; font-weight: bold; color: white; text-align: center">
+                                <p>step 3: whom you're going with</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+        <div id="section31" class="fluid-container" style="margin-left: 25%">
+            <h1>Do you need a ride?</h1>
+            <div id="myMap" style="color:black;"></div>
+        </div>
+
+        <div id="section32" style="margin-left: 25%">
+            <h1>Do you own a car?</h1>
+
+            <form action="/action_page.php">
+                <div class="form-group">
+                    <label for="email">e-mail:</label>
+                    <input type="email" class="form-control" id="email" placeholder="enter e-mail" name="email">
+                </div>
+                <div class="form-group">
+                    <label for="name">full name:</label>
+                    <input type="text" class="form-control" id="name" placeholder="enter full name"
+                           name="name">
+                </div>
+                <div class="form-group">
+                    <label for="licenceplate">licence plate:</label>
+                    <input type="text" class="form-control" id="licenceplate" placeholder="enter licence plate"
+                           name="licenceplate">
+                </div>
+                <div class="form-group">
+                    <label for="destination">your destination today:</label>
+                    <input type="text" class="form-control" id="destination" placeholder="enter your destination"
+                           name="destination">
+                </div>
+                <div class="form-group">
+                    <label for="carcapacity">car capacity:</label>
+                    <input type="text" class="form-control" id="carcapacity" placeholder="enter licence plate"
+                           name="carcapacity">
+                </div>
+                <button type="submit" class="btn btn-default">Submit</button>
+            </form>
+
+        </div>
+    </div>
+</div>
+</div>
+
+</body>
+</html>
